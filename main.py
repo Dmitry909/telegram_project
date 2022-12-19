@@ -1,28 +1,30 @@
-from telegram import ReplyKeyboardMarkup
-from telegram.ext import Updater, MessageHandler, Filters
-from telegram.ext import CallbackContext, CommandHandler
+from telegram import ForceReply, Update
+# from telegram.ext import Updater, MessageHandler, Filters
+# from telegram.ext import CallbackContext, CommandHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime as dt
 import csv
 
-TOKEN = '1237986641:AAGSG9tz7Fefs_1Rua0U-jN2NmNxz78oY4E'
+TOKEN = '5937916941:AAG3x4o-lWgr5NJPE704U7dqxawZyB9F9eI'
 
+variables = ["texts", "length", "photos"]
 users = dict()
 username_by_id = dict()
 id_by_username = dict()
-main_markup = ReplyKeyboardMarkup([['/stat', '/help', '/history']], one_time_keyboard=True)
 
 
 class User:
     def __init__(self):
-        self.numb_of_textes = 0
-        self.numb_of_photos = 0
-        self.size_of_textes = 0
+        self.count = {variables[0] : 0, variables[1] : 0, variables[2] : 0}
 
 
-def add_new_user(chat, user):
+def add_new_user(update, context):
+    text = update.message.text
+    chat = update.message.chat
+    user = update.message.from_user
     chat_id = chat.id
     user_id = user.id
     username = user.username
@@ -34,38 +36,46 @@ def add_new_user(chat, user):
         users[chat_id][user_id] = User()
 
 
-def text_processor(update, context):
+def add_text_message(update, context):
+    add_new_user(update, context)
     text = update.message.text
     chat = update.message.chat
     user = update.message.from_user
-    add_new_user(chat, user)
-    users[chat.id][user.id].numb_of_textes += 1
-    users[chat.id][user.id].size_of_textes += len(text)
+    users[chat.id][user.id].count["texts"] += 1
+    users[chat.id][user.id].count["length"] += len(text)
 
 
-def photo_processor(update, context):
+async def text_processor(update, context):
+    add_text_message(update, context)
+
+
+async def photo_processor(update, context):
+    add_new_user(update, context)
+    text = update.message.text
     chat = update.message.chat
     user = update.message.from_user
-    add_new_user(chat, user)
-    user[chat.id][user.id].numb_of_photos += 1
+    users[chat.id][user.id].count["photos"] += 1
+    if text is not None:
+        users[chat.id][user.id].count["length"] += len(text)
 
 
-def start(update, context):
-    update.message.reply_text(
-        "Привет! Я статистик-бот. По вашим запросам я буду выдавать различную статистику этого чата",
-        reply_markup=main_markup)
+async def start(update, context):
+    add_text_message(update, context)
+    await update.message.reply_text(
+        "Привет! Я статистик-бот. По вашим запросам я буду выдавать различную статистику этого чата. "
+        "Чтобы показать список моих команд, отправьте /help")
 
 
-def help(update, context):
-    update.message.reply_text(
-        "Для получения меню команд отправьте /start")
-
-
-def history(update, context):
-    chat_id = update.message.chat.id
-    user_id = update.message.from_user.id
-    update.message.reply_text(' '.join(text_messages[chat_id][user_id]))
-
+async def help(update, context):
+    add_text_message(update, context)
+    await update.message.reply_text(
+        "Доступные команды:\n"
+        "/start : приветственное сообщение\n"
+        "/help : помощь\n"
+        "/stats : статистика по кол-ву отправленных сообщений всех участников чата\n"
+        "/stats [@vasya @masha ...] : только по заданным пользователям\n"
+        "/stats [texts length photos] : выбор параметров"
+        "/stats [texts length photos] [@vasya @masha ...] : комбинированные параметры\n")
 
 def diagramm(data_names, data_values):
     dpi = 80
@@ -85,27 +95,36 @@ def diagramm(data_names, data_values):
     fig.savefig('pie.png')
 
 
-def messages_by_users(update, context):
+async def messages_by_users(update, context):
+    add_text_message(update, context)
     chat_id = update.message.chat.id
     search = []
     do_not_search = []
     ans = ''
-    if len(context.args) == 0:
-        for user_id in users[chat_id]:
-            search.append([users[chat_id][user_id].numb_of_textes, username_by_id[user_id]])
-        ans = 'Количество сообщений от каждого участника:\n'
-    else:
-        for i in context.args:
-            s = str(i)
-            if s[0] == '@':
-                s = str(s[1::])
-            if s in id_by_username and id_by_username[s] in users[chat_id]:
-                user_id = id_by_username[s]
-                search.append([users[chat_id][user_id].numb_of_textes, username_by_id[user_id]])
-            else:
-                do_not_search.append('@' + s)
-        if len(search) != 0:
-            ans = 'Количество сообщений от каждого указанного участника:\n'
+
+    string_args = [str(s) for s in context.args]
+    current_vars = list(filter(lambda x : x in string_args, variables))
+    if len(current_vars) == 0:
+        current_vars = ['texts', 'photos']
+    string_args = list(filter(lambda x : x not in variables, string_args))
+
+    if len(string_args) == 0:
+        string_args = ['@' + username_by_id[user_id] for user_id in users[chat_id]]
+    for s in string_args:
+        if s[0] != '@':
+            await update.message.reply_text('Аргумент {} не поддерживается'.format(s))
+            return
+        s = str(s[1::])
+        if s in id_by_username and id_by_username[s] in users[chat_id]:
+            user_id = id_by_username[s]
+            count = 0
+            for var in current_vars:
+                count += users[chat_id][user_id].count[var]
+            search.append([count, username_by_id[user_id]])
+        else:
+            do_not_search.append('@' + s)
+    if len(search) != 0:
+        ans = 'Статистика по всем указанным участникам:\n'
     if len(search) != 0:
         search.sort(reverse=True)
         s = []
@@ -115,40 +134,36 @@ def messages_by_users(update, context):
             s.append(''.join(['@', i[1], ': ', str(i[0])]))
             names.append('@' + i[1])
             values.append(i[0])
-        if len(search) > 1:
-            diagramm(names, values)
-            messages_by_users_image(update, context)
+        diagramm(names, values)
+        await messages_by_users_image(update, context)
         ans += '\n'.join(s)
     else:
         ans += "Не был найден ни один участник из указанных выше"
-        update.message.reply_text(ans)
+        await update.message.reply_text(ans)
         return
     if len(do_not_search) != 0:
         ans += "\nНайдены не были следующие участники:\n"
         ans += '\n'.join(do_not_search)
-    update.message.reply_text(ans)
+    await update.message.reply_text(ans)
 
 
-def messages_by_users_image(update, context):
+async def messages_by_users_image(update, context):
     doc = open('pie.png', 'rb')
     caption = "Статистика"
-    context.bot.send_photo(update.message.chat.id, doc, caption)
+    await context.bot.send_photo(update.message.chat.id, doc, caption)
 
 
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    application = Application.builder().token("5937916941:AAG3x4o-lWgr5NJPE704U7dqxawZyB9F9eI").build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("history", history))
-    dp.add_handler(CommandHandler("stat", messages_by_users))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help))
+    application.add_handler(CommandHandler("stats", messages_by_users))
 
-    text_handler = MessageHandler(Filters.text, text_processor)
-    dp.add_handler(text_handler)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_processor))
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, photo_processor))
 
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 
 if __name__ == '__main__':
