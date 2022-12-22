@@ -75,7 +75,9 @@ async def help(update, context):
         "/stats : статистика по кол-ву отправленных сообщений всех участников чата\n"
         "/stats [@vasya @masha ...] : только по заданным пользователям\n"
         "/stats [texts length photos] : выбор параметров"
-        "/stats [texts length photos] [@vasya @masha ...] : комбинированные параметры\n")
+        "/stats [texts length photos] [@vasya @masha ...] : комбинированные параметры\n"
+        "/hello приветствие"
+        "/bye прощание")
 
 def diagramm(data_names, data_values):
     dpi = 80
@@ -153,6 +155,14 @@ async def messages_by_users_image(update, context):
     await context.bot.send_photo(update.message.chat.id, doc, caption)
 
 
+async def hellooo(update, context):
+    await update.message.reply_text("Hello!")
+
+
+async def byebye(update, context):
+    await update.message.reply_text("Bye!")
+
+
 def main():
     file = open('token.txt', 'r')
     token = file.readlines()[0]
@@ -161,6 +171,8 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("stats", messages_by_users))
+    application.add_handler(CommandHandler("hello", hellooo))
+    application.add_handler(CommandHandler("bye", byebye))
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_processor))
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, photo_processor))
