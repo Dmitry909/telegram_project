@@ -154,7 +154,9 @@ async def messages_by_users_image(update, context):
 
 
 def main():
-    application = Application.builder().token("5937916941:AAG3x4o-lWgr5NJPE704U7dqxawZyB9F9eI").build()
+    file = open('token.txt', 'r')
+    token = file.readlines()[0]
+    application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
