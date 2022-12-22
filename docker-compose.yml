@@ -1,0 +1,11 @@
+version: "3.0"
+
+services:
+  server:
+    build:
+      context: .
+      args:
+        - Token
+    command: tail -F anything
+    ports:
+      - 2957:2957
