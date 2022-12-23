@@ -5,4 +5,4 @@ RUN pip install matplotlib
 
 COPY . .
 
-ENTRYPOINT ["python3", "./main.py"]
+ENTRYPOINT ["python3", "./main.py", "token_here"]

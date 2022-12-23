@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime as dt
 import csv
+from sys import argv
 
 TOKEN = '5937916941:AAG3x4o-lWgr5NJPE704U7dqxawZyB9F9eI'
 
@@ -164,8 +165,7 @@ async def byebye(update, context):
 
 
 def main():
-    file = open('token.txt', 'r')
-    token = file.readlines()[0]
+    token = argv[1]
     application = Application.builder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
